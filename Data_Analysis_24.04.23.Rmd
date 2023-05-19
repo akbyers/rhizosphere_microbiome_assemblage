@@ -1,7 +1,8 @@
+
 ---
 title: "Data analysis: Nature vs Nurture in the rhizosphere"
 author: "Alexa Byers"
-date: "21/04/2022 (last edited)"
+date: "19/05/2022 (last edited)"
 output: html_document
 ---
 
@@ -11,23 +12,17 @@ knitr::opts_chunk$set(echo = TRUE)
 #load libraries
 ```{r}
 library(vegan)
-library(dendextend)
 library(picante)
 library(stats)
 library(pairwiseAdonis)
-library(ecodist)
 library(phyloseq)
 library(ggplot2)
-library(scales)
 library(dplyr)
 library(stats)
 library(microbiome)
 library(tidyverse)
-library(heatmaply)
 library(metagenomeSeq)
 library(ape)
-library(ggpubr)
-library(betapart)
 library(psych)
 theme_set(theme_bw())
 ```
@@ -36,15 +31,14 @@ theme_set(theme_bw())
 This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
-#1. Set up phyloseq objects using outputs of dada2 processing (files were cleaned post dada2 to remove singletons, unidentified phyla, and Chloroplasts/Cyanobacteria)
-
+#1. Set up phyloseq objects using outputs of dada2 processing 
+#files were cleaned post dada2 to remove singletons, unidentified phyla, and Chloroplasts/Cyanobacteria
 #load ITS data
-```{r load ITS ASV data files and create phyloseq object}
+```{r}
 ASV.ITS <- read.csv("ITS_dada2/ASV_counts_cleaned.csv")
 Taxa.ITS <- read.csv("ITS_dada2/Taxonomy_cleaned.csv")
 Sample.ITS <- read.csv("ITS_dada2/ITS_samples.csv")
 ITS.tree <- read.tree("ITS_fasttreeRooted/tree.nwk")
-
 #format dataframes
 row.names(ASV.ITS) = ASV.ITS$ASVs
 ASV.ITS = ASV.ITS[,-1:-2]
@@ -52,7 +46,7 @@ row.names(Taxa.ITS) = Taxa.ITS$ASVs
 Taxa.ITS = Taxa.ITS[-1:-2]
 row.names(Sample.ITS) = Sample.ITS$SampleID
 ```
-# create phyloseq object
+# create ITS phyloseq object
 ```{r}
 ASVS.ITS = otu_table(as.matrix(ASV.ITS), taxa_are_rows = TRUE)
 TAXA.ITS = tax_table(as.matrix(Taxa.ITS))
@@ -176,7 +170,6 @@ any(taxa_sums(physeq4.16S)== 0)
 physeq.rarefied.16S = rarefy_even_depth(physeq4.16S, rngseed=1, sample.size=1*min(sample_sums(physeq4.16S)), replace=F)
 sample_sums(physeq.rarefied.16S) 
 ```
-
 #alpha diversity on rarefied 16S data
 ```{r}
 asv_16s <- as.data.frame(otu_table(physeq.rarefied.16S))
@@ -225,10 +218,8 @@ KW_16S_PD <- lapply(KW_16S_data, function(x) kruskal.test(pd.diversity_16S$PD ~ 
 PW_16S_SR <- lapply(KW_16S_data, function(x) pairwise.wilcox.test(pd.diversity_16S$SR, x, p.adjust.method = "bonferroni"))
 PW_16S_PD <- lapply(KW_16S_data, function(x) pairwise.wilcox.test(pd.diversity_16S$PD, x, p.adjust.method = "bonferroni"))
 ```
-
 ###BETA DIVERSITY ANALYSIS
 ###ITS beta diversity analysis
-#using non pime filtered phyloseq object
 #calculate ITS community compositon using weighted UniFrac distance matrix
 ```{r}
 physeq.rarefied_ITS <- subset_samples(physeq.rarefied_ITS, SampleID !="kabir_ITS2rcbc295") #huge outliers
@@ -240,12 +231,7 @@ sample.its <- data.frame(sample_data(physeq.rarefied_ITS))
 #adonis and pairwise adonis testing
 ```{r}
 Adonis_ITS_data <- sample.its[c(3:12)]
-Adonis_unifrac_ITS <- lapply(Adonis_ITS_data, function(x) vegan::adonis(unifrac.its ~ x))
-Adonis.ITS.Results <- data.frame(R.Sq = sapply(Adonis_unifrac_ITS, function(x) x$aov.tab$R2),
-           p.value = sapply(Adonis_unifrac_ITS, function(x) x$aov.tab$`Pr(>F)`))
-
-#devtools::install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
-library(pairwiseAdonis)
+Adonis_unifrac_ITS <- lapply(Adonis_ITS_data, function(x) vegan::adonis2(unifrac.its ~ x))
 Pairwise_adonis_ITS <- lapply(Adonis_ITS_data, function(x) pairwise.adonis(unifrac.its, x, p.adjust.m = "bonferroni", reduce = NULL, perm = 999))
 ```
 #NMDS plots. Setting consistent layout style
@@ -271,30 +257,20 @@ its_plot = plot_ordination(physeq.rarefied_ITS, ordination.its, type="samples", 
 png("FigureS3.png", width = 2500, height = 2000, res = 200)
 its_plot
 ```
-
 #mantel tests to correlate env variables with unifrac distances
 #prep data
 ```{r}
 sample.ITS2 <- data.frame(sapply(sample.its[,14:24], as.numeric))
 rownames(sample.ITS2) <- rownames(sample.its)
 its.vegdist <- lapply(sample.ITS2, vegdist, method="euclidean", na.rm = TRUE)
-
 #mantel tests on weighted unifrac distances
 Mantel.ITS <- lapply(its.vegdist, function(x) vegan::mantel(x, unifrac.its, method="spearman", permutations = 999, na.rm = TRUE))
-Mantel.ITS.Results <- data.frame(Mantel.r = sapply(Mantel.ITS, function(x) x$statistic), p.value = sapply(Mantel.ITS, function(x) x$signif))
 ```
-
 ##betadisper tests to analyse within group variance
-
 ```{r}
 Betadisp_ITS_data <- sample.its[c(3:12)]
 betadisp_its <- lapply(Betadisp_ITS_data, function(x) vegan::betadisper(unifrac.its, x, type = "median", bias.adjust = FALSE)) #calculating betadispersion
-
 permu_betadisp_its <- lapply(betadisp_its, permutest, pairwise=TRUE) #permutation tests
-#formatting results
-permu_betadisp_its.Results <- data.frame(F_value = sapply(permu_betadisp_its, function(x) x$tab$`F`),
-           p.value = sapply(permu_betadisp_its, function(x) x$tab$`Pr(>F)`))
-
 #pairwise tests on betadispersion
 Permu_betadisp_its.pairwise <- lapply(permu_betadisp_its, function (x) x$pairwise$permuted <- x$pairwise$permuted[!(x$pairwise$permuted > 0.05)]) #only keeping sig results for output
 ```
@@ -310,7 +286,6 @@ BD_ITS.PMA <- describe.by(betadisp_distances_ITS$Primary.mycorrhizal.association
 BD_ITS.NF <- describe.by(betadisp_distances_ITS$Nitrogen.fixing, betadisp_distances_ITS$Nitrogen.fixing.1, mat = TRUE, digits=3)
 BD_ITS.FG <- describe.by(betadisp_distances_ITS$Functional.group, betadisp_distances_ITS$Functional.group.1, mat = TRUE, digits=3)
 BD_ITS.LS <- describe.by(betadisp_distances_ITS$Life.span, betadisp_distances_ITS$Life.span.1, mat = TRUE, digits=3)
-
 #capture into one summary table
 Betadispersion_its_summary <- rbind(BD_ITS.PlantID, BD_ITS.Genus, BD_ITS.Family, BD_ITS.Order, BD_ITS.Class, BD_ITS.Provenance, BD_ITS.PMA, BD_ITS.NF, BD_ITS.FG, BD_ITS.LS)
 ```
@@ -324,10 +299,7 @@ sample.16S <- data.frame(sample_data(physeq.rarefied.16S))
 #adonis and pairwise adonis testing
 ```{r}
 Adonis_16S_data <- sample.16S[c(3:12)]
-Adonis_tests_16S <- lapply(Adonis_16S_data, function(x) vegan::adonis(unifrac.16S ~ x))
-Adonis.16S.Results <- data.frame(R.Sq = sapply(Adonis_tests_16S, function(x) x$aov.tab$R2),
-           p.value = sapply(Adonis_tests_16S, function(x) x$aov.tab$`Pr(>F)`))
-
+Adonis_tests_16S <- lapply(Adonis_16S_data, function(x) vegan::adonis2(unifrac.16S ~ x))
 #pairwise adonis
 Pairwise_adonis_16S <- lapply(Adonis_16S_data, function(x) pairwise.adonis(unifrac.16S, x, p.adjust.m = "bonferroni", reduce = NULL, perm = 999))
 ```
@@ -348,10 +320,6 @@ sample.16S2 <- data.frame(sapply(sample.16S[,14:24],as.numeric))
 rownames(sample.16S2) = rownames(sample.16S2)
 x16s.vegdist <- lapply(sample.16S2, vegdist, method="euclidean", na.rm = TRUE)
 Mantel.16S <- lapply(x16s.vegdist, function(x) vegan::mantel(x, unifrac.16S, method="spearman", permutations = 999, na.rm = TRUE))
-
-#formatting results
-Mantel.16S.Results <- data.frame(Mantel.r = sapply(Mantel.16S, function(x) x$statistic),
-           p.value = sapply(Mantel.16S, function(x) x$signif))
 ```
 ##16S betadisper tests to test within group variance
 ```{r}
@@ -359,13 +327,8 @@ Betadisp_16S_data <- sample.16S[c(3:12)]
 Betadisp_16S_data$PlantID <- as.factor(Betadisp_16S_data$PlantID)
 levels(Betadisp_16S_data$PlantID)[levels(Betadisp_16S_data$PlantID)=="F.novae-zelandiae "] <- "F.nz" #formatting issue needed corrected
 betadisp_16S <- lapply(Betadisp_16S_data, function(x) vegan::betadisper(unifrac.16S, x, type = "median", bias.adjust = FALSE))
-#exporting betadisp distances
-betadisp_distances_16S <- data.frame(sapply(betadisp_16S, function(x) x$distances), sapply(betadisp_16S, function(x) x$group))
-
 #permutation tests on betadispersion scores
 permu_betadisp_16s <- lapply(betadisp_16S, permutest, pairwise=TRUE)
-permu_betadisp_16s.Results <- data.frame(F_value = sapply(permu_betadisp_16s, function(x) x$tab$`F`),
-           p.value = sapply(permu_betadisp_16s, function(x) x$tab$`Pr(>F)`))
 ```
 ##betadispersion summary statistics
 ```{r}
@@ -379,13 +342,10 @@ BD_16S.PMA <- describe.by(betadisp_distances_16S$Primary.mycorrhizal.association
 BD_16S.NF <- describe.by(betadisp_distances_16S$Nitrogen.fixing, betadisp_distances_16S$Nitrogen.fixing.1, mat = TRUE, digits=3)
 BD_16S.FG <- describe.by(betadisp_distances_16S$Functional.group, betadisp_distances_16S$Functional.group.1, mat = TRUE, digits=3)
 BD_16S.LS <- describe.by(betadisp_distances_16S$Life.span, betadisp_distances_16S$Life.span.1, mat = TRUE, digits=3)
-
 #capture in single summary table
 Betadispersion_16S_summary <- rbind(BD_16S.PlantID, BD_16S.Genus, BD_16S.Family, BD_16S.Order, BD_16S.Class, BD_16S.Provenance, BD_16S.PMA, BD_16S.NF, BD_16S.FG, BD_16S.LS)
 ```
-
 #correlating 16S and ITS UniFrac distances with matK sequence distances
-
 #merge samples and get mean ASV count
 ```{r}
 physeq_ITS_merged <- merge_samples(physeq.rarefied_ITS, "PlantID", fun = mean)
@@ -402,7 +362,6 @@ matK.dist = matK.dist[,-1]
 ```{r, message=FALSE}
 sample_data(physeq_ITS_merged)$PlantID <- sample_names(physeq_ITS_merged)
 sample_data(physeq_16S_merged)$PlantID <- sample_names(physeq_16S_merged)
-
 plants_to_remove <- c("A.caesiiglauca", "C.secta")
 physeq_ITS_merged <- subset_samples(physeq_ITS_merged, !(PlantID %in% plants_to_remove))
 physeq_16S_merged <- subset_samples(physeq_16S_merged, !(PlantID %in% plants_to_remove))
@@ -412,7 +371,6 @@ physeq_16S_merged <- subset_samples(physeq_16S_merged, !(PlantID %in% plants_to_
 Unifrac.its2 <- phyloseq::distance(physeq_ITS_merged, "wunifrac")
 Unifrac.16s2 <- phyloseq::distance(physeq_16S_merged, "wunifrac")
 ```
-
 # reorder matK table by plant species order in ASV table
 ```{r}
 physeq_ITS_merged3 = as.data.frame(otu_table(physeq_ITS_merged))
@@ -445,7 +403,6 @@ matK_16S.cluster <- hclust(matK.dist_16S, method = "complete")
 x16S.cluster2 <- ape::as.phylo(x16S.cluster)
 matK_16S.cluster2 <- ape::as.phylo(matK_16S.cluster)
 association_matrix <- cbind(x16S.cluster2$tip.label, matK_16S.cluster2$tip.label) #for connecting plant names
-
 png(file="Fig_2.png", units="in", width=10, height=8, res=300)
 cophyloplot(x16S.cluster2, matK_16S.cluster2, show.tip.label = TRUE, length.line = 6, space = 100, gap = 2, assoc = association, col = "red", lty = "dashed")
 title(xlab="16S rRNA UniFrac distances vs Plant MatK distances")
@@ -463,15 +420,12 @@ matK_ITS.cluster <- hclust(matK.dist_ITS, method = "complete")
 ITS.cluster2 <- ape::as.phylo(ITS.cluster)
 matK_ITS.cluster2 <- ape::as.phylo(matK_ITS.cluster)
 association <- cbind(ITS.cluster2$tip.label, matK_ITS.cluster2$tip.label)
-
 png(file="Fig_1.png", units="in", width=10, height=8, res=300)
 cophyloplot(ITS.cluster2, matK_ITS.cluster2, show.tip.label = TRUE, length.line = 6, space = 100, gap = 2, assoc = association, col = "red", lty = "dashed")
 title(xlab="ITS UniFrac distances vs Plant MatK distances")
 dev.off()
 ```
-
 ##Variance partitioning analysis
-
 ##ITS variance partitioning
 ```{r}
 soil.env.ITS <- as.data.frame(sample.ITS2, row.names = rownames(sample.ITS2))
@@ -481,21 +435,19 @@ rownames(plant.data.ITS) <- rownames(sample.its)
 setdiff(rownames(plant.data.ITS), rownames(soil.env.ITS))
 remove_samples2 <- c("kabir_ITS2rcbc368", "kabir_ITS2rcbc343", "kabir_ITS2rcbc354") #removing samples which aren't present in soil chemical data
 plant.data.ITS <- plant.data.ITS[!(row.names(plant.data.ITS) %in% remove_samples2), ]
-
 #remove unwanted samples from unifrac matrix
 ITS.community <- as.matrix(unifrac.its)
 setdiff(rownames(ITS.community), rownames(plant.data.ITS))
 ITS.community <- ITS.community[!(row.names(ITS.community) %in% remove_samples2), ] #remove rows
 ITS.community <- ITS.community[ , !(colnames(ITS.community) %in% remove_samples2)]
 ```
-
 ## Change the data frame with factors into numeric model matrix. Test effects of plant identity, plant life history, rhizosphere traits, soil chemical conditions, and stohcastic properties (residual variation)
 ```{r}
 mm1_plantID <- model.matrix(~ PlantID, plant.data.ITS)[,-1] #plant identity
 mm2_PLHT <- model.matrix(~ Provenance + Life.span + Functional.group, plant.data.ITS)[,-1] #plant life history traits
 mm3_PRT <- model.matrix(~ Primary.mycorrhizal.association + Nitrogen.fixing, plant.data.ITS)[,-1] #plant rhizosphere traits
 ```
-# Use RDA to test sigificanance of each indivudal matrix whilst controlling for the other three matrices
+# Use RDA to test significance of each indivudal matrix whilst controlling for the other three matrices
 ```{r}
 ##testing full model
 dbRDA.ALL <- vegan::capscale(ITS.community ~ mm1_plantID + mm2_PLHT + mm3_PRT + as.matrix(soil.env.ITS))
@@ -540,7 +492,6 @@ setdiff(rownames(x16S.community), rownames(plant.data.16S))
 x16S.community <- x16S.community[!(row.names(x16S.community) %in% remove_samples2), ] #remove rows
 x16S.community <- x16S.community[ , !(colnames(x16S.community) %in% remove_samples2)]
 ```
-
 ##Change the data frame with factors into numeric model matrix. Test effects of plant identity, plant life history, rhizosphere traits, soil chemical conditions, and stohcastic properties (residual variation)
 ```{r}
 mm1_16S_plantID <- model.matrix(~ PlantID, plant.data.16S)[,-1] #plant identity
@@ -576,7 +527,6 @@ tiff("16S_VarPart.tiff", units="in", width=8, height=5, res=300)
 plot(x16s.varpart, digits = 1, Xnames = c('PI***','PLH', 'RS', 'SC***'), bg = c('navy', 'purple', 'red', 'yellow'), cex=1.2, id.size=1.2)
 dev.off()
 ```
-
 #Forward selection of soil chemical parameters using ordiR2step
 ##16S
 ```{r}
@@ -596,8 +546,7 @@ anova(dbRDA.16S) #just FS soil chem
 dbRDA.16S1 <- capscale(x16S.community ~ Olsen.Phosphorus + pH + Sulphate.Sulphur, mm1_16S_plantID, data = soil.env.16S)
 anova(dbRDA.16S1) #FS soil chem + plant ID
 ```
-
-##ITS.
+##ITS
 ```{r}
 rda.ITS.0 <- capscale(ITS.community ~ 1, data = soil.env.ITS)
 rda.ITS.all <- capscale(ITS.community ~ pH + Olsen.Phosphorus + Sulphate.Sulphur + Pot..Avail..N + Anaer..Min..N +        Anaer..Min..N.Tot..N + Organic.Matter + Total.Carbon + Total.Nitrogen + C.N.Ratio + Volume.Weight, data = soil.env.ITS)
@@ -615,15 +564,7 @@ anova(dbRDA.ITS)
 dbRDA.ITS1 <- vegan::capscale(ITS.community ~ Olsen.Phosphorus + Anaer..Min..N.Tot..N + Volume.Weight + mm1_plantID, data = soil.env.ITS)
 anova(dbRDA.ITS1)
 ```
-
-
-#PIME: Prevalance Interval for Microbiome Evalution. PIME removes the within group variation found in metataxonomic surveys (16S rRNA datasets) by capturing only biological differences at high samples prevalence levels
-#provides a prevalence filtered dataset which can then be passed onto other forms of differential abundance and compositional analysis 
-
-#https://bocasbiome.github.io/wf7.html
-#https://github.com/microEcology/pime
-#see paper: https://doi.org/10.1111/1755-0998.13116
-
+#PIME: Prevalance Interval for Microbiome Evalution https://bocasbiome.github.io/wf7.html; https://github.com/microEcology/pime; https://doi.org/10.1111/1755-0998.13116
 ```{r}
 #remotes::install_github("microEcology/pime")
 library(pime)
@@ -651,10 +592,6 @@ prevalences_16S = pime.prevalence(per_variable_16S)
 head(prevalences_16S)
 ```
 #calculate best prevalence interval for the datset
-#uses randomForest to build random forests trees for samples classification and variable importance computation
-#The best prevalence interval value provides the clearest separation of communities while including a majority of the taxa
-#first interval where OOB error rate is zero
-#returns Mean Decrease Accuracy (MDA), Mean Decrease Impurity (MDI), overall and by sample group, and taxonomy for each ASV. PIME keeps the top 30 variables with highest MDA each prevalence level
 ```{r}
 #its
 set.seed(42)
@@ -675,39 +612,28 @@ imp80_16S = best.prev.16S$`Importance`$`Prevalence 80`
 #obtain phyloseq object at desired cutoff
 ```{r}
 prevalence.75_ITS = prevalences_ITS$`75`
-prevalence.75_ITS
-saveRDS(prevalence.75_ITS, "ITS_Pime_Prevalence_75.rds")
-
 prevalence.80_16S = prevalences_16S$`80`
-prevalence.80_16S
-saveRDS(prevalence.80_16S, "16S_Pime_Prevalence_80.rds")
 ```
 #estimating prediction error
 ```{r}
 randomized_ITS = pime.error.prediction(physeq.rarefied_ITS, "PlantID", bootstrap = 100, parallel = TRUE, max.prev = 95)
 randomized_ITS$Plot
-
 #estimate OOB error with each prevalence interval filtering
 replicated.oob.error_ITS = pime.oob.replicate(prevalences_ITS, "PlantID", bootstrap = 100, parallel = TRUE)
-
 randomized_16S = pime.error.prediction(physeq.rarefied.16S, "PlantID", bootstrap = 100, parallel = TRUE, max.prev = 95)
 randomized_16S$Plot
-
 #estimate OOB error with each prevalence interval filtering
 replicated.oob.error_16S = pime.oob.replicate(prevalences_16S, "PlantID", bootstrap = 100, parallel = TRUE)
 ```
-
 ##idenitfy ITS ASVs which significantly vary across plant species
 ```{r}
 #prevalence.75_ITS_genus <- tax_glom(prevalence.75_ITS, taxrank = "Genus", NArm = FALSE)
 pime_metaSeq_ITS <- phyloseq_to_metagenomeSeq(prevalence.75_ITS)
-
 ##Computes a log-normal linear model and permutation based p-values
 plantID = pData(pime_metaSeq_ITS)$PlantID
 mod = model.matrix(~ 0 + plantID)
 fit_ITS = fitLogNormal(obj = pime_metaSeq_ITS, useCSSoffset = FALSE, mod=mod, B=999) #fit model
 adjustedPvalues = p.adjust(fit_ITS$p, method = "holm") #adj p values for multiple comparisons
-
 ##extract results
 Pime_lmFit_t <- as.data.frame(fit_ITS$t) #model t values
 Pime_lmFit_p.adj <- as.data.frame(adjustedPvalues) #adjusted p values
@@ -726,26 +652,22 @@ Pime_lmFit_p.adj["ASV"] <- rownames(Pime_lmFit_p.adj)
 Pime_lmFit_p.adj <- Pime_lmFit_p.adj[Pime_lmFit_p.adj$adjustedPvalues <= "0.05", ] #select significant p-values
 keep_its_asvs <- Pime_lmFit_p.adj$ASV
 prevalence.75_ITS3 <- prune_taxa(keep_its_asvs, prevalence.75_ITS)
-
 ITS_sig_taxa <- tax_table(prevalence.75_ITS3) #taxanames to be plotted later on in the heatmap
 ```
 #16s DA analysis
 ```{r}
 pime_metaSeq_16S2 <- phyloseq_to_metagenomeSeq(prevalence.80_16S)
-
 ##Computes a log-normal linear model and permutation based p-values
 plantID2 = pData(pime_metaSeq_16S)$PlantID
 mod2 = model.matrix(~ 0 + plantID2)
 fit_16S = fitLogNormal(obj = pime_metaSeq_16S, useCSSoffset = FALSE, mod=mod2, B=999) #fit model
 adjustedPvalues2 = p.adjust(fit_16S$p, method = "holm") #adj p values for multiple comparisons
-
 ##extract results
 Pime_lmFit_t2 <- as.data.frame(fit_16S$t) #model t values
 Pime_lmFit_p.adj2 <- as.data.frame(adjustedPvalues2) #adjusted p values
 Pime_lmFit_FC2 <- as.data.frame(fit_16S$fit$coefficients)
 Pime_lmFit_FC2 <- cbind(Pime_lmFit_FC2, Pime_lmFit_p.adj2)
 ```
-
 #filter 16S ASVs from phyloseq object which do not sig vary by plant ID
 ```{r}
 Pime_lmFit_p.adj2["ASV"] <- rownames(Pime_lmFit_p.adj2)
@@ -754,7 +676,6 @@ keep_16s_asvs <- Pime_lmFit_p.adj2$ASV
 prevalence.80_16S3 <- prune_taxa(keep_16s_asvs, prevalence.80_16S) 
 x16S_sig_taxa <- tax_table(prevalence.80_16S3) #taxanames to be plotted later on in the heatmap
 ```
-
 ##plotting taxonomic differences 
 ```{r}
 #install.packages("pheatmap")
@@ -768,14 +689,12 @@ Pime_lmFit_FC <- Pime_lmFit_FC[,-38]
 colnames(Pime_lmFit_FC) <- c("A.caesiiglauca" , "A.capillaris" , "A.dealbata" , "A.glutinosa", "A.inermis", "A.lessoniana", "A.millefolium", "B.greyi", "C.conspicua", "C.robusta", "C.secta", "C.vulgare", "D.glomerata", "E.vulgare", "F.novae-zelandiae ", "H.lanatus", "H.odora", "H.perforatum", "L.aboreus", "L.perenne", "M.astonii", "M.complexa", "M.sativa", "O.leptophyllus", "O.virgata", "P.cita", "P.colensoi", "P.contorta", "P.cookianum", "P.radiata", "P.totara", "R.acetosella", "R.obtusifolius", "S.microphylla", "T.pratense", "T.repens", "U.europaeus")
 
 rownames(Pime_lmFit_FC) <- c("s_Mortierella_pseudozygospora [ASV_31]","g_Mortierella [ASV_10]","g_Mortierella [ASV_16]","s_Mortierella_gamsii [ASV_7]","s_Mortierella_gamsii [ASV_8]","s_Mortierella_sarnyensis [ASV_29]","s_Mortierella_humilis [ASV_3]","g_Mortierella [ASV_4]","s_Apiotrichum_porosum [ASV_1]","g_Apiotrichum [ASV_34]","s_Solicoccozyma_terrea [ASV_13]","g_Solicoccozyma [ASV_54]","s_Solicoccozyma_terricola [ASV_5]","o_Leucosporidiales [ASV_59]","s_Cladosporium_delicatulum [ASV_48]","s_Exophiala_pisciphila [ASV_53]","s_Saitozyma_podzolica [ASV_6]","s_Pseudogymnoascus_destructans [ASV_2]","s_Geomyces_asperulatus [ASV_22]","s_Ilyonectria_mors-pacis [ASV_49]","s_Fusarium_acutatum [ASV_17]","s_Umbelopsis_dimorpha [ASV_606]","s_Mortierella_gamsii [ASV_12]","g_Mortierella [ASV_57]","s_Mortierella_echinula [ASV_260]","s_Mortierella_globulifera [ASV_47]","g_Apiotrichum [ASV_90]","g_Solicoccozyma [ASV_37]","s_Exophiala_equi [ASV_52]","s_Saitozyma_podzolica [ASV_46]","c_Leotiomycetes [ASV_142]","o_Helotiales [ASV_426]","s_Russula_delica [ASV_229]","f_Stachybotryaceae [ASV_198]","s_Acremonium_curvulum [ASV_224]","p_Ascomycota [ASV_169]")
-
 Pime_lmFit_FC.t = t(Pime_lmFit_FC) #transpose for heatmap
 #heatmap
 tiff("ITS_heatmap.tiff", units="in", width=12, height=10, res=300)
 ITS_heatmap <- pheatmap(Pime_lmFit_FC.t, cex=0.9) #plant species and asvs clustered via hclust
 dev.off()
 ```
-
 ##plotting 16S taxonomic heatmap
 ```{r}
 #remove non sig taxa 
@@ -783,19 +702,15 @@ dev.off()
 Pime_lmFit_FC2 <- dplyr::filter(Pime_lmFit_FC2, adjustedPvalues2 < 0.05)
 Pime_lmFit_FC2 <- Pime_lmFit_FC2[,-38]
 colnames(Pime_lmFit_FC2) <- c("A.caesiiglauca" , "A.capillaris" , "A.dealbata" , "A.glutinosa", "A.inermis", "A.lessoniana", "A.millefolium", "B.greyi", "C.conspicua", "C.robusta", "C.secta", "C.vulgare", "D.glomerata", "E.vulgare", "F.novae-zelandiae ", "H.lanatus", "H.odora", "H.perforatum", "L.aboreus", "L.perenne", "M.astonii", "M.complexa", "M.sativa", "O.leptophyllus", "O.virgata", "P.cita", "P.colensoi", "P.contorta", "P.cookianum", "P.radiata", "P.totara", "R.acetosella", "R.obtusifolius", "S.microphylla", "T.pratense", "T.repens", "U.europaeus")
-
 #edit rownames
 rownames(Pime_lmFit_FC2) <- c("g_Ktedonobacter [ASV_11]", "c_Actinobacteria [ASV_9]","g_Conexibacter [ASV_31]",
 "g_Actinoallomurus [ASV_13]","g_Jatrophihabitans [ASV_100]","g_Mycobacterium [ASV_49]","f_Chitinophagaceae [ASV_5]","p_candidate_division_WPS-1 [ASV_57]","c_Spartobacteria [ASV_3]","c_Acidobacteria_Gp2 [ASV_60]","c_Acidobacteria_Gp1 [ASV_29]","g_Bacillus [ASV_15]","g_Devosia [ASV_6]","f_Caulobacteraceae [ASV_82]","g_Roseiarcus [ASV_7]","o_Rhizobiales [ASV_12]","g_Pseudolabrys [ASV_52]","g_Bradyrhizobium [ASV_1]","f_Rhodospirillaceae [ASV_44]","g_Porphyrobacter [ASV_21]","g_Rhodanobacter [ASV_17]","g_Povalibacter [ASV_22]","c_Acidobacteria_Gp16 [ASV_67]","g_Bellilinea [ASV_2427]","g_Gaiella [ASV_45]","f_Iamiaceae [ASV_261]","g_Kribbella [ASV_464]","f_Micromonosporaceae [ASV_193]","g_Arthrobacter [ASV_8]","g_Cellulomos [ASV_639]","g_Phaeodactylibacter [ASV_1605]","g_Flavitalea [ASV_18]","g_Terrimos [ASV_479]","g_Flavobacterium [ASV_292]","c_Acidobacteria_Gp6 [ASV_131]","c_Acidobacteria_Gp4 [ASV_162]","o_Aridibacter [ASV_441]","c_Acidobacteria_Gp4 [ASV_366]","c_Acidobacteria_Gp7 [ASV_145]","g_Aquisphaera [ASV_112]","f_Verrucomicrobiaceae [ASV_2407]","o_Terrimicrobium [ASV_211]","c_Subdivision3 [ASV_24]","o_Edaphobacter [ASV_101]","c_Acidobacteria_Gp5 [ASV_741]","o_Telmatobacter [ASV_32]","o_Candidatus_Solibacter [ASV_87]","f_Polyangiaceae [ASV_116]","g_Minicystis [ASV_252]","f_Nannocystaceae [ASV_303]","o_Myxococcales [ASV_19]","g_Sporosarci [ASV_43]","g_Aminobacter [ASV_206]","g_Rhodomicrobium [ASV_154]","f_Acetobacteraceae [ASV_160]","g_Acidisoma [ASV_71]","f_Reyranella [ASV_55]","c_Alphaproteobacteria [ASV_39]","g_Sphingomos [ASV_16]","g_Formivibrio [ASV_51]","o_Burkholderiales [ASV_88]","g_Variovorax [ASV_183]","c_Betaproteobacteria [ASV_58]","g_Dokdonella [ASV_78]","g_Thermomos [ASV_167]","o_Xanthomonadales [ASV_118]","c_Gammaproteobacteria [ASV_108]","f_Thermomonosporaceae [ASV_109]","g_Pirellula [ASV_260]","o_Acidobacterium [ASV_207]","c_Acidobacteria_Gp3 [ASV_286]","g_Phenylobacterium [ASV_239]","f_Rhizomicrobium [ASV_27]","g_Gemmatimos [ASV_83]","o_Acidimicrobiales [ASV_128]","o_Granulicella [ASV_318]","g_Rhodoplanes [ASV_56]","g_Arenimos [ASV_143]")
-
-
 Pime_lmFit_FC2.t = t(Pime_lmFit_FC2) #transpose for heatmap
 #heatmap
 tiff("16S_heatmap.tiff", units="in", width=15, height=12, res=300)
 x16S_heatmap <- pheatmap(Pime_lmFit_FC2.t, cex=0.9) #plant species and asvs clustered via hclust
 dev.off()
 ```
-
 ###plotting heatmaps correlating plants on 16S and ITS asv log fold change
 ##make heatmap/perform analysis for each metadata factor.
 ```{r}
@@ -803,7 +718,6 @@ Pime_lmFit_FoldChange <- as.data.frame(fit_ITS$fit$coefficients)
 Pime_lmFit_FoldChange <- Pime_lmFit_FoldChange[,-38]
 Pime_lmFit_FoldChange2 <- as.data.frame(fit_16S$fit$coefficients)
 Pime_lmFit_FoldChange2 <- Pime_lmFit_FoldChange2[,-38]
-
 colnames(Pime_lmFit_FoldChange) <- c("A.caesiiglauca" , "A.capillaris" , "A.dealbata" , "A.glutinosa", "A.inermis", "A.lessoniana", "A.millefolium", "B.greyi", "C.conspicua", "C.robusta", "C.secta", "C.vulgare", "D.glomerata", "E.vulgare", "F.novae-zelandiae ", "H.lanatus", "H.odora", "H.perforatum", "L.aboreus", "L.perenne", "M.astonii", "M.complexa", "M.sativa", "O.leptophyllus", "O.virgata", "P.cita", "P.colensoi", "P.contorta", "P.cookianum", "P.radiata", "P.totara", "R.acetosella", "R.obtusifolius", "S.microphylla", "T.pratense", "T.repens", "U.europaeus")
 colnames(Pime_lmFit_FoldChange2) <- c("A.caesiiglauca" , "A.capillaris" , "A.dealbata" , "A.glutinosa", "A.inermis", "A.lessoniana", "A.millefolium", "B.greyi", "C.conspicua", "C.robusta", "C.secta", "C.vulgare", "D.glomerata", "E.vulgare", "F.novae-zelandiae ", "H.lanatus", "H.odora", "H.perforatum", "L.aboreus", "L.perenne", "M.astonii", "M.complexa", "M.sativa", "O.leptophyllus", "O.virgata", "P.cita", "P.colensoi", "P.contorta", "P.cookianum", "P.radiata", "P.totara", "R.acetosella", "R.obtusifolius", "S.microphylla", "T.pratense", "T.repens", "U.europaeus")
 ```
@@ -823,7 +737,6 @@ head(plantID_cormat)
 upper_tri <- get_upper_tri(plantID_cormat)
 plantID_cormat.m <- melt(upper_tri, na.rm = TRUE)
 head(plantID_cormat.m)
-
 #formatting bacteria
 plantID_cormat2 <- cor(Pime_lmFit_FoldChange2)
 upper_tri2 <- get_upper_tri(plantID_cormat2)
@@ -847,32 +760,9 @@ PlantID_corplot <- ggplot(data = plantID_cormat.m, aes(x=Var1, y=Var2, fill=valu
 tiff("~/Xioben data/Alexa_TRM_analysis/April_2024/Fig_6.tiff", units="in", width=10, height=10, res=300)
 PlantID_corplot
 ```
-```{r}
-##bacteria corrplot
-PlantID_corplot_16S <- ggplot(data = plantID_cormat.m2, aes(x=Var1, y=Var2, fill=value)) + 
-  geom_tile(color = "white")+
-  xlab("Plant species")+
-  ylab("Plant species")+
- scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
-   midpoint = 0, limit = c(-1,1), space = "Lab", 
-   name="Pearson\nCorrelation") +
-  theme_minimal()+ 
- theme(axis.text.x = element_text(angle = 90, vjust = 1, 
-    size = 8, hjust = 1), axis.text.y = element_text(angle = 0, vjust = 1, 
-    size = 8, hjust = 1))+
- coord_fixed()
-tiff("~/Xioben data/Alexa_TRM_analysis/April_2024/Figure_5.tiff", units="in", width=10, height=10, res=300)
-PlantID_corplot_16S
-```
 ##extracting p-values for correlation matrices
 ```{r}
 flat_cor_mat <- function(cor_r, cor_p){
-  #This function provides a simple formatting of a correlation matrix
-  #into a table with 4 columns containing :
-    # Column 1 : row names (variable 1 for the correlation test)
-    # Column 2 : column names (variable 2 for the correlation test)
-    # Column 3 : the correlation coefficients
-    # Column 4 : the p-values of the correlations
   library(tidyr)
   library(tibble)
   cor_r <- rownames_to_column(as.data.frame(cor_r), var = "row")
@@ -888,23 +778,16 @@ flat_cor_mat <- function(cor_r, cor_p){
 ##fungi
 SpeciesCor <- Hmisc::rcorr(as.matrix(Pime_lmFit_FoldChange))
 Species_cor_matrix <- flat_cor_mat(SpeciesCor$r, SpeciesCor$P)
-
 ##bacteria
 SpeciesCor2 <- Hmisc::rcorr(as.matrix(Pime_lmFit_FoldChange2))
 Species_cor_matrix2 <- flat_cor_mat(SpeciesCor2$r, SpeciesCor2$P)
-
 #getting average and SD R value
 fungi_R <- Species_cor_matrix$cor
 fungi_R <- fungi_R[fungi_R < 1] #removing values of 1 (self correlation between same plant species)
 mean(fungi_R) #mean 0.686
 sd(fungi_R) #SD 0.078
-
 bacteria_R <- Species_cor_matrix2$cor
 bacteria_R <- bacteria_R[bacteria_R < 1] #removing values of 1 (self correlation between same plant species)
 mean(bacteria_R) #mean 0.698
 sd(bacteria_R) #SD 0.082
 ```
-
-
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
