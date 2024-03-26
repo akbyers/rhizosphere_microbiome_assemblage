@@ -89,7 +89,6 @@ ASVdf.ITS <- cbind(rownames(ASVdf.ITS), data.frame(ASVdf.ITS, row.names = NULL))
 colnames(ASVdf.ITS)[1] <- "SampleID"
 row.names(ASVdf.ITS) = ASVdf.ITS$SampleID
 
-png(filename="ITS_rarecurve.png", width=2500, height =2000, res=200)
 rarecurve(ASVdf.ITS[-1], step = 20, xlab = "Number of Sequences", ylab = "ASVs")
 
 ##remove samples with low read counts (less than 9000)
@@ -154,7 +153,6 @@ ASVdf.16S <- cbind(rownames(ASVdf.16S), data.frame(ASVdf.16S, row.names = NULL))
 colnames(ASVdf.16S)[1] <- "SampleID"
 row.names(ASVdf.16S) = ASVdf.16S$SampleID
 
-png(filename="x16s_rarecurve.png", width=2500, height =2000, res=200)
 rarecurve(ASVdf.16S[-1], step = 20, xlab = "Number of Sequences", ylab = "ASVs")
 
 #remove 16S samples with low read counts below 5000
@@ -252,11 +250,6 @@ its_plot = plot_ordination(physeq.rarefied_ITS, ordination.its, type="samples", 
     nmds_layout + 
     geom_point(size=4, alpha= 1)
 ```
-#export plot
-```{r}
-png("FigureS3.png", width = 2500, height = 2000, res = 200)
-its_plot
-```
 #mantel tests to correlate env variables with unifrac distances
 #prep data
 ```{r}
@@ -308,11 +301,6 @@ Pairwise_adonis_16S <- lapply(Adonis_16S_data, function(x) pairwise.adonis(unifr
 x16S_plot = plot_ordination(physeq.rarefied.16S, ordination.16S, type="samples", color="PlantID") +   
   nmds_layout + 
   geom_point(size=4, alpha= 1)
-```
-#export plot
-```{r}
-png("FigureS4.png", width = 2500, height = 2000, res = 200)
-x16S_plot
 ```
 #mantel tests to correlate env variables with weighted unifrac distances
 ```{r 16S mantel tests; data prep}
@@ -403,7 +391,6 @@ matK_16S.cluster <- hclust(matK.dist_16S, method = "complete")
 x16S.cluster2 <- ape::as.phylo(x16S.cluster)
 matK_16S.cluster2 <- ape::as.phylo(matK_16S.cluster)
 association_matrix <- cbind(x16S.cluster2$tip.label, matK_16S.cluster2$tip.label) #for connecting plant names
-png(file="Fig_2.png", units="in", width=10, height=8, res=300)
 cophyloplot(x16S.cluster2, matK_16S.cluster2, show.tip.label = TRUE, length.line = 6, space = 100, gap = 2, assoc = association, col = "red", lty = "dashed")
 title(xlab="16S rRNA UniFrac distances vs Plant MatK distances")
 dev.off()
@@ -420,7 +407,6 @@ matK_ITS.cluster <- hclust(matK.dist_ITS, method = "complete")
 ITS.cluster2 <- ape::as.phylo(ITS.cluster)
 matK_ITS.cluster2 <- ape::as.phylo(matK_ITS.cluster)
 association <- cbind(ITS.cluster2$tip.label, matK_ITS.cluster2$tip.label)
-png(file="Fig_1.png", units="in", width=10, height=8, res=300)
 cophyloplot(ITS.cluster2, matK_ITS.cluster2, show.tip.label = TRUE, length.line = 6, space = 100, gap = 2, assoc = association, col = "red", lty = "dashed")
 title(xlab="ITS UniFrac distances vs Plant MatK distances")
 dev.off()
